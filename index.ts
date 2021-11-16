@@ -569,11 +569,13 @@ function createTeamsEmbed(team1: Player[], team2: Player[]){
     .setColor('#6464CC')
     .setDescription('Players:')
     .setTimestamp()
+    list.addField(`Team 1`, `:black_circle: `, true);
     for(const player of team1){
-        list.addField(player.user, `Team 1`);
+        list.addField(player.user, `:black_circle: `);
     }
+    list.addField(`Team 2`, `:black_circle: `, true);
     for(const player of team2){
-        list.addField(player.user, `Team 2`);
+        list.addField(player.user, `:black_circle: `);
     }
     return list;
 }
