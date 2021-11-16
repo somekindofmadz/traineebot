@@ -1,10 +1,7 @@
 export interface Player {
-    name: string;
-    guild: string;
-    attack: number;
-    block: number;
-    reaction: number;
-    dodge: number;
+    user: string;
+    captain?: boolean;
+    priority?: number;
 }
 
 export interface User {

@@ -1,21 +1,18 @@
 import * as Discord from "discord.js";
 import * as fs from 'fs';
 import { clearInterval } from "timers";
-import { Map, Team, User } from "./interfaces";
+import { Map, Player, Team, User } from "./interfaces";
 
-
+// this shit is used for the race tourney/admin
 const client = new Discord.Client();
 const channelID = '870404179980591205';
 const admins = ['297634729342009354', '404387695205548065', '870043075819487233'];
-var maxPlayers = 14;
-var wordsmode = false;
-var words = [];
 var listID = '';
+var maxPlayers = 14;
+var tags = [];
 var embedFound = false;
 var registered = [];
-var tags = [];
-var timeout = [];
-var suttonmode = false;
+
 const list = new Discord.MessageEmbed()
     .setAuthor('Турнир будет проводиться в N-noe время на N-nom режиме')
     .setColor('#6464CC')
@@ -23,6 +20,25 @@ const list = new Discord.MessageEmbed()
     .setDescription('Список участников:')
     .setTimestamp()
     .setFooter('Регистрация доступна до 4252');
+
+//wordsgame/suttonmode
+var words = [];
+var suttonmode = false;
+var wordsmode = false;
+
+//credit system
+var timeout = [];
+var creditSystem = false;
+
+//drafting
+var queue: Player[] = [];
+var isOpened = false;
+var team1: Player[] = [];
+var team2: Player[] = [];
+var canPick = false;
+var turn = true;
+var playerList = '';
+var draftChannel = '910208237851275344';
 
 client.once('ready', () =>{
     console.log('Started');
@@ -34,12 +50,11 @@ client.on('message', (message) => {
     //if(message.channel.id !== channelID) return;
     //const channel = client.channels.cache.get(channelID);
     const channel = message.channel;
-    if(message.author.bot && message.embeds && !embedFound){
+    if(message.author.bot && message.embeds){
         for (let embed of message.embeds){
-            if(embed.color === list.color){
-                listID = message.id;
-                embedFound = true;
-                console.log(listID);
+            if(embed.author === 'Player List'){
+                playerList = message.id;
+                console.log(playerList);
             }
         }
     }
@@ -60,7 +75,7 @@ client.on('message', (message) => {
         }
         (channel as Discord.TextChannel).send(`Поздравляю ` + message.author.toString() + `, ты достиг ${lvl} уровня! :4373crashbandicootthumbsup:`);
     }
-    if(isInSystem(message.author)){
+    if(isInSystem(message.author) && creditSystem){
         if(timeout.includes(message.author)) return;
         if(message.content.toLowerCase().includes(`srg`) || message.content.toLowerCase().includes(`surge`)){
             if(message.content.toLowerCase().includes(`good`) || message.content.toLowerCase().includes(`amazing`) || message.content.toLowerCase().includes(`cool`) || message.content.toLowerCase().includes(`best`) || (message.content.toLowerCase().includes(`like`) && !message.content.toLowerCase().includes(`don`)) || (message.content.toLowerCase().includes(`love`) && !message.content.toLowerCase().includes(`don`)) || message.content.toLowerCase().includes(`great`) || message.content.toLowerCase().includes(`strong`)){
@@ -284,11 +299,100 @@ client.on('message', (message) => {
                 words = [];
                 (channel as Discord.TextChannel).send(`Игра началась`);
                 return;
+            case 'credits':
+                if(!isAdmin(message.author.id)) return;
+                creditSystem = !creditSystem;
+                return;
+            case 'queue':
+                if(!isAdmin(message.author.id)) return;
+                isOpened = !isOpened;
+                if(isOpened)
+                client.channels.fetch('910208237851275344').then(c => {
+                    (c as Discord.TextChannel).send(`@everyone the draft starts! You can now register by typing /register in channel`);
+                }); //close/open drafts command
+                return;
+            case 'register':
+                if(queue.includes(queue.filter(p => p.user === message.author.username)[0]) || queue.length >= 10 || message.channel.id !== '910208237851275344') return;
+                queue.push(getPlayer(message));
+                message.channel.send(`${message.author.toString()} registered, ${queue.length}/10`);
+            case 'init':
+                if(!isAdmin(message.author.id)) return;
+                if(args[0] === 'random'){
+                    //gets 2 equal commands by randomizing players into them
+                    while(team1.length !== 2){
+                        team1.push(getScrimmer(queue));
+                    }
+                    while(team2.length !== 2){
+                        team2.push(getScrimmer(queue));
+                    }
+                    message.channel.send(createTeamsEmbed(team1, team2));
+                    team1 = [];
+                    team2 = [];
+                }
+                if(args[0] === 'captains'){
+                    const [c1, c2] = getCaptains(queue);
+                    team1.push(c1);
+                    team2.push(c2);
+                    message.channel.send(`${c1.user} and ${c2.user} are the captains`)
+                    canPick = true;
+                    //gives some time before the list pop up cuz why not
+                    setTimeout(() => {message.channel.send(createDraftEmbed(queue))}, 10000);
+                }
+                return;
+            case 'pick':
+                if(!canPick) return;
+                const pick = client.users.cache.find(u => u.username === args[0]);
+                if(!pick){
+                    message.channel.send(`No such user in draft`);
+                    return;
+                }
+                const player = queue.indexOf(queue.filter(p => p.user === pick.username)[0]);
+                //checks if the user is a captain and it's theirs turn to pick
+                if(turn && team1.includes(queue.filter(p => (p.user === pick.username) && p.captain)[0])){
+                    team1.push(queue[player]);
+                }else if(!turn && team2.includes(queue.filter(p => (p.user === pick.username) && p.captain)[0])){
+                    team2.push(queue[player]);
+                }
+                //removes picked player from the list
+                client.channels.fetch(draftChannel).then(c => {(c as Discord.TextChannel).messages.fetch(playerList).then(m => {
+                    const embed = message.embeds[0];
+                    const field = embed.fields.filter(f => f.name === pick.username);
+                    embed.fields.splice(embed.fields.indexOf(field[0]), 1);
+                })})
+                queue.splice(player, 1);
+                //changes turn
+                turn = !turn;
+
+                if(queue.length === 0){
+                    canPick = false;
+                    message.channel.send(createTeamsEmbed(team1, team2));
+                    team1 = [];
+                    team2 = [];
+                }
+                return;
             default:
                 return;
         }
     }
 })
+
+function getCaptains(players: Player[]){
+    return [getScrimmer(players, true), getScrimmer(players, true)];
+}
+
+function getScrimmer(players: Player[], captain?: boolean){
+    const player = sample(players);
+    if(captain) player.captain = true;
+    queue.splice(queue.indexOf(player), 1);
+    return player;
+}
+
+function getPlayer(message: Discord.Message){
+    var player: Player = {
+        user: message.author.username
+    }
+    return player;
+}
 
 function addPoints(name: string, points: number, message: Discord.Message){
     const user = client.users.cache.find(u => u.username === name);
@@ -343,7 +447,7 @@ function getTeamList(){
     return text;
 }
 
-function sample(arr: Array<any>){
+function sample<T>(arr: Array<T>){
     return arr[Math.floor(Math.random() * arr.length)];
 }
 
@@ -354,8 +458,8 @@ function getRandomTeam(tier?: number, randomMode?: string){
     var team = "SRG";
     var mode = 'Team Elim';
     while(team === "SRG"){
+    const [t1, t2, t3] = getArrays(obj);
     if(tier){
-        const [t1, t2, t3] = getArrays(obj);
         switch(tier){
             case 3:
                 team = sample(t3).name;
@@ -368,7 +472,7 @@ function getRandomTeam(tier?: number, randomMode?: string){
                 break;
         }
     } else {
-        team = sample(obj).name;
+        team = sample(sample([t1, t2, t3])).name;
     }
     }
     if(randomMode && randomMode === "true"){
@@ -457,6 +561,33 @@ function writeScrim(name: string, result: string, maps: Map[]){
 
 function isAdmin(id:string){
     return admins.includes(id);
+}
+
+function createTeamsEmbed(team1: Player[], team2: Player[]){
+    const list = new Discord.MessageEmbed()
+    .setAuthor('Teams List')
+    .setColor('#6464CC')
+    .setDescription('Players:')
+    .setTimestamp()
+    for(const player of team1){
+        list.addField(player.user, `Team 1`);
+    }
+    for(const player of team2){
+        list.addField(player.user, `Team 2`);
+    }
+    return list;
+}
+
+function createDraftEmbed(players: Player[]){
+    const list = new Discord.MessageEmbed()
+    .setAuthor('Player List')
+    .setColor('#6464CC')
+    .setDescription('Remaining scrimmers:')
+    .setTimestamp()
+    for(const player of players){
+        list.addField(player.user, `just pick him`);
+    }
+    return list;
 }
 
 function createEmbed(map: string, day: string, time: string | number, expires: string | number){
