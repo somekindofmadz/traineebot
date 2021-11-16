@@ -318,13 +318,14 @@ client.on('message', (message) => {
             case 'init':
                 if(!isAdmin(message.author.id)) return;
                 if(args[0] === 'random'){
-                    //gets 2 equal commands by randomizing players into them
-                    while(team1.length !== 2){
+                    //gets 2 equal commands by randomizing players into them 
+                    while(queue.length > 0 && (team1.length < team2.length) || (team1.length == team2.length)){
                         team1.push(getScrimmer(queue));
                     }
-                    while(team2.length !== 2){
+                    while(queue.length > 0 && (team2.length < team1.length) || (team2.length == team1.length)){
                         team2.push(getScrimmer(queue));
                     }
+                    console.log(team1, team2);
                     message.channel.send(createTeamsEmbed(team1, team2));
                     team1 = [];
                     team2 = [];
@@ -564,19 +565,25 @@ function isAdmin(id:string){
 }
 
 function createTeamsEmbed(team1: Player[], team2: Player[]){
+    let names1 = [];
+    let names2 = [];
+    for(const player1 of team1){
+        names1.push(player1.user);
+    }
+    for(const player2 of team2){
+        names2.push(player2.user);
+    }
     const list = new Discord.MessageEmbed()
     .setAuthor('Teams List')
     .setColor('#6464CC')
     .setDescription('Players:')
     .setTimestamp()
-    list.addField(`Team 1`, `:black_circle: `, true);
-    for(const player of team1){
-        list.addField(player.user, `:black_circle: `);
-    }
-    list.addField(`Team 2`, `:black_circle: `, true);
-    for(const player of team2){
-        list.addField(player.user, `:black_circle: `);
-    }
+    .addFields(
+        { name: 'TEAM 1', value: names1},
+        { name: '\u200B', value: '\u200B' },
+        { name: 'TEAM 2', value: names2, inline: true },
+        { name: '\u200B', value: '\u200B' }
+    )
     return list;
 }
 
