@@ -429,16 +429,16 @@ client.on('message', (message) => {
                 const pl = draft.filter(p => p.id === playerID)[0];
                 console.log(player);
                 console.log(!draft.includes(draft.filter(p => p.id === playerID)[0]));
-                if(player > -1 || !draft.includes(pl)){
+                if(player == -1 || !draft.includes(pl)){
                     message.channel.send(`No such user in draft`);
                     return;
                 }
-                const pick = client.users.cache.find(u => u.username === draft[player].user);
+                const pick = client.users.cache.find(u => u.username === draft[player-1].user);
                 //const player = draft.indexOf(draft.filter(p => p.user === pick.username)[0]);
                 //checks if the user is a captain and it's theirs turn to pick
                 if(team1.includes(team1.filter(p => (p.user === message.author.username) && p.captain)[0])){
                     if(turn){
-                        team1.push(draft[player]);
+                        team1.push(draft[player-1]);
                         message.channel.send(`${message.author.toString()} picked ${pick.toString()}`);
                     } else {
                         message.channel.send(`Not your turn`);
@@ -446,7 +446,7 @@ client.on('message', (message) => {
                     }
                 }else if(team2.includes(team2.filter(p => (p.user === message.author.username) && p.captain)[0])){
                     if(!turn){
-                        team2.push(draft[player]);
+                        team2.push(draft[player-1]);
                         message.channel.send(`${message.author.toString()} picked ${pick.toString()}`);
                     } else {
                         message.channel.send(`Not your turn`);
@@ -465,8 +465,8 @@ client.on('message', (message) => {
                 })})
                 console.log(`team 1` + `${JSON.stringify(team1)}`);
                 console.log(`team 2` + `${JSON.stringify(team2)}`);
-                console.log(draft[player]);
-                draft.splice(player, 1);
+                console.log(draft[player-1]);
+                draft.splice(player-1, 1);
                 console.log(draft);
                 //changes turn
                 turn = !turn;
