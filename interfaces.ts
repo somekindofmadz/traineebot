@@ -1,5 +1,6 @@
 export interface Player {
     user: string;
+    id?: number;
     captain?: boolean;
     priority?: number;
 }
