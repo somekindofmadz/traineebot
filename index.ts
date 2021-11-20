@@ -3,6 +3,22 @@ import * as fs from 'fs';
 import { clearInterval } from "timers";
 import { Map, Player, Team, User } from "./interfaces";
 
+const commands = `player commands: \n` +
+`/j, /join - join the queue \n` + 
+`/l, /leave - leave the queue \n` + 
+`/queue - shows the amount of players in queue \n` +
+`/pick (number) - picks the player under the number in your team(captains only) \n` +
+`/help - displays all available commands \n`; 
+
+
+const admincommands = `admin commands: \n` +
+`/adminhelp - displays all available commands \n` + 
+`/init (random|captains) - inititates the game with mode in input \n` + 
+`/start - opens/closes the possibility of joining the queue \n` + 
+`/fill - fills the current game with the players in queue \n` +
+`/close - closes the current game \n`;
+
+
 // this shit is used for the race tourney/admin
 const client = new Discord.Client();
 const channelID = '870404179980591205';
@@ -314,10 +330,10 @@ client.on('message', (message) => {
                 return;
             case 'j':
             case 'join':
-                //if(queue.includes(queue.filter(p => p.user === message.author.username)[0]) || queue.length >= 10 || message.channel.id !== '910208237851275344'){
-               //     message.reply(`You are already in a queue`);
-                //    return;
-               // }
+                if(queue.includes(queue.filter(p => p.user === message.author.username)[0]) || queue.length >= 10 || message.channel.id !== '910208237851275344'){
+                    message.reply(`You are already in a queue`);
+                    return;
+                }
                 queue.push(getPlayer(message));
                 message.channel.send(`${message.author.toString()} registered, ${queue.length}/10`);
                 return;
@@ -478,6 +494,13 @@ client.on('message', (message) => {
                     team1 = [];
                     team2 = [];
                 }
+                return;
+            case 'help':
+                message.channel.send(commands);
+                return;
+            case 'adminhelp':
+                if(!isAdmin(message)) return;
+                message.channel.send(admincommands);
                 return;
             default:
                 return;
