@@ -35,7 +35,7 @@ var noQueueBlock = false;
 var queueBlock = false;
 var turn = true;
 var playerList = '';
-const draftChannel = '910208237851275344';
+const draftChannel = '910835938622599169';
 const adminChannel = '910208237851275344';
 const organizer_role = '909563810183008296';
 // 910835938622599169 - #draft-queue
