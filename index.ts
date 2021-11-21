@@ -17,7 +17,8 @@ const admincommands = `**Admin Commands: ** \n` +
 `> **!close** - closes the current game. \n`+
 `> **!bq**, **!blockqueue** - blocks players from getting in queue. (toggle, default: false) \n`+
 `> **!nqb**, **!noqueueblock** - lets you join multiple times in the queue (for test purposes mainly). (toggle, default: false) \n`+
-`> **!mp**, **!maxplayers** [*player amount*] - changes the amount of players that can be joined. (value, default: 10) \n`;
+`> **!mp**, **!maxplayers** [*player amount*] - changes the amount of players that can be joined. (value, default: 10) \n`+
+`> **!mtc**, **!maintenance** [*on* | *off*] - announces maintenance and status of the bot, will block or open the queue again depends on the status of the bot. (toggle, default: false) \n`;
 
 
 // this shit is used for the race tourney/admin
@@ -38,6 +39,8 @@ var playerList = '';
 const draftChannel = '910835938622599169';
 const adminChannel = '910208237851275344';
 const organizer_role = '909563810183008296';
+const bot_status = '912063721881337957';
+var maintenance_mode = false;
 // 910835938622599169 - #draft-queue
 // 910208237851275344 - #draft-tests
 
@@ -65,7 +68,7 @@ client.on('message', (message) => {
                 isOpened = !isOpened;
                 if(isOpened)
                 client.channels.fetch(draftChannel).then(c => {
-                    (c as Discord.TextChannel).send("@everyon the draft starts! You can now register by typing `!join` in "+`<#${draftChannel}> channel.`);
+                    (c as Discord.TextChannel).send("@everyone the draft starts! You can now register by typing `!join` in "+`<#${draftChannel}> channel.`);
                 }); //close/open drafts command
                 message.react("👍");
                 return;
@@ -88,7 +91,7 @@ client.on('message', (message) => {
                     message.reply(`Queue is temporarly blocked.`);
                     return;
                 }
-                if(queue.includes(!noQueueBlock && queue.filter(p => p.user === message.author.username)[0]) || message.channel.id !== draftChannel){
+                if(queue.includes(!noQueueBlock && queue.filter(p => p.user === message.author.username)[0])){
                     message.reply(`You are already in queue.`);
                     return;
                 }
@@ -164,10 +167,22 @@ client.on('message', (message) => {
                 return;
             case 'queue':
             case 'q':
-                message.channel.send(`${queue.length}/${maxPlayers}`);
+                message.channel.send(`There are currently ${queue.length}/${maxPlayers} players in queue.`);
                 return;
             case 'init':
                 if(!isAdmin(message)) return;
+                if(!args[0] || args[0].length < 1 || args[1]){
+                    message.reply('Invalid input.');
+                    return;
+                }
+                if (queue.length < 1){
+                    message.reply('Queue is empty.');
+                    return;
+                } else if (queue.length < 2) {
+                    message.reply(`There are not enough players in the queue. \nThere are currently ${queue.length}/${maxPlayers} players in the queue`);
+                    return;
+                }
+                    
                 if(args[0] === 'random'){
                     console.log(queue);
                     //gets 2 equal commands by randomizing players into them 
@@ -183,8 +198,7 @@ client.on('message', (message) => {
                     message.channel.send(createTeamsEmbed(team1, team2));
                     team1 = [];
                     team2 = [];
-                }
-                if(args[0] === 'captains'){
+                } else if(args[0] === 'captains'){
                     getDrafters(queue);
                     queue = [];
                     const [c1, c2] = getCaptains(draft);
@@ -192,77 +206,82 @@ client.on('message', (message) => {
                     team2.push(c2);
                     let c1name = client.users.cache.find(u => u.username === c1.user);
                     let c2name = client.users.cache.find(u => u.username === c2.user);
-                    message.channel.send(`${c1name.toString()} and ${c2name.toString()} are your captains!\n` + `${c1name.toString()} gets pick first.`);
+                    client.channels.fetch(draftChannel).then(c => {
+                        (c as Discord.TextChannel).send(`${c1name.toString()} and ${c2name.toString()} are your captains!\n` + `${c1name.toString()} gets pick first.`)});
                     canPick = true;
                     console.log(c1, c2);
                     //gives some time before the list pop up cuz why not
-                    setTimeout(() => {message.channel.send(createDraftEmbed(draft))}, 6000);
+                    setTimeout(() => { client.channels.fetch(draftChannel).then(c => { (c as Discord.TextChannel).send(createDraftEmbed(draft)), 6000 })});
+                    
+                } else {
+                    message.reply('Invalid input.');
+                    return;
                 }
                 message.react("👍");
                 return;
-                case 'pick':
-                case 'p':
-                    if(!canPick) return;
-                    const playerID = parseInt(args[0]);
-                    console.log(playerID);
-                    if(isNaN(playerID)){
-                        message.channel.send(`Invalid input, pick by a number`);
-                        return;
-                    }
-                    const player = draft.indexOf(draft.filter(p => p.id === playerID)[0]) + 1;
-                    const pl = draft.filter(p => p.id === playerID)[0];
-                    console.log(player);
-                    console.log(!draft.includes(draft.filter(p => p.id === playerID)[0]));
-                    if(player == -1 || !draft.includes(pl)){
-                        message.channel.send(`No such user in draft`);
-                        return;
-                    }
-                    const pick = client.users.cache.find(u => u.username === draft[player-1].user);
-                    //const player = draft.indexOf(draft.filter(p => p.user === pick.username)[0]);
-                    //checks if the user is a captain and it's theirs turn to pick
-                    if(team1.includes(team1.filter(p => (p.user === message.author.username) && p.captain)[0])){
-                        if(turn){
-                            team1.push(draft[player-1]);
-                            message.channel.send(`${message.author.toString()} picked ${pick.toString()}`);
-                        } else {
-                            message.channel.send(`Not your turn`);
-                            return;
-                        }
-                    }else if(team2.includes(team2.filter(p => (p.user === message.author.username) && p.captain)[0])){
-                        if(!turn){
-                            team2.push(draft[player-1]);
-                            message.channel.send(`${message.author.toString()} picked ${pick.toString()}`);
-                        } else {
-                            message.channel.send(`Not your turn`);
-                            return;
-                        }
-                    } else {
-                        message.channel.send(`You are not the captain`);
-                        return;
-                    }
-                    //removes picked player from the list
-                    client.channels.fetch(draftChannel).then(c => {(c as Discord.TextChannel).messages.fetch(playerList).then(m => {
-                        const embed = m.embeds[0];
-                        const field = embed.fields.filter(f => f.value === `${playerID}.${pick.username}`);
-                        embed.fields.splice(embed.fields.indexOf(field[0]), 1);
-                        m.edit(embed);
-                    })})
-                    console.log(`team 1` + `${JSON.stringify(team1)}`);
-                    console.log(`team 2` + `${JSON.stringify(team2)}`);
-                    console.log(draft[player-1]);
-                    draft.splice(player-1, 1);
-                    console.log(draft);
-                    //changes turn
-                    turn = !turn;
-                    console.log(turn);
-    
-                    if(draft.length === 0){
-                        canPick = false;
-                        message.channel.send(createTeamsEmbed(team1, team2));
-                        team1 = [];
-                        team2 = [];
-                    }
+            case 'pick':
+            case 'p':
+                if(!canPick) return;
+                const playerID = parseInt(args[0]);
+                console.log(playerID);
+                if(isNaN(playerID)){
+                    message.channel.send(`Invalid input, pick by a number`);
                     return;
+                }
+                const player = draft.indexOf(draft.filter(p => p.id === playerID)[0]) + 1;
+                const pl = draft.filter(p => p.id === playerID)[0];
+                console.log(player);
+                console.log(!draft.includes(draft.filter(p => p.id === playerID)[0]));
+                if(player == -1 || !draft.includes(pl)){
+                    message.channel.send(`No such user in draft`);
+                    return;
+                }
+                const pick = client.users.cache.find(u => u.username === draft[player-1].user);
+                //const player = draft.indexOf(draft.filter(p => p.user === pick.username)[0]);
+                //checks if the user is a captain and it's theirs turn to pick
+                if(team1.includes(team1.filter(p => (p.user === message.author.username) && p.captain)[0])){
+                    if(turn){
+                        team1.push(draft[player-1]);
+                        message.channel.send(`${message.author.toString()} picked ${pick.toString()}`);
+                    } else {
+                        message.channel.send(`Not your turn`);
+                        return;
+                    }
+                }else if(team2.includes(team2.filter(p => (p.user === message.author.username) && p.captain)[0])){
+                    if(!turn){
+                        team2.push(draft[player-1]);
+                        message.channel.send(`${message.author.toString()} picked ${pick.toString()}`);
+                    } else {
+                        message.channel.send(`Not your turn`);
+                        return;
+                    }
+                } else {
+                    message.channel.send(`You are not the captain`);
+                    return;
+                }
+                //removes picked player from the list
+                client.channels.fetch(draftChannel).then(c => {(c as Discord.TextChannel).messages.fetch(playerList).then(m => {
+                    const embed = m.embeds[0];
+                    const field = embed.fields.filter(f => f.value === `${playerID}.${pick.username}`);
+                    embed.fields.splice(embed.fields.indexOf(field[0]), 1);
+                    m.edit(embed);
+                })})
+                console.log(`team 1` + `${JSON.stringify(team1)}`);
+                console.log(`team 2` + `${JSON.stringify(team2)}`);
+                console.log(draft[player-1]);
+                draft.splice(player-1, 1);
+                console.log(draft);
+                //changes turn
+                turn = !turn;
+                console.log(turn);
+
+                if(draft.length === 0){
+                    canPick = false;
+                    message.channel.send(createTeamsEmbed(team1, team2));
+                    team1 = [];
+                    team2 = [];
+                }
+                return;
             case 'help':
             case 'h':
                 message.channel.send(commands);
@@ -275,6 +294,9 @@ client.on('message', (message) => {
             case 'maxplayers':
             case 'mp':
                 if(!isAdmin(message)) return;
+                if(isNaN(parseInt(args[0]))) {
+                    message.reply('Invalid number you pepega.')
+                }
                 maxPlayers = parseInt(args[0]);
                 message.react("👍");
                 return;
@@ -295,6 +317,24 @@ client.on('message', (message) => {
                     queueBlock = false;
                 } else {
                     queueBlock = true;
+                }
+                message.react("👍");
+                return;
+            case 'maintenance':
+            case 'mtc':
+                if(!isAdmin(message)) return;
+                if (args[0] === 'on') {
+                    client.channels.fetch(bot_status).then(c => {
+                        (c as Discord.TextChannel).send(`Bot is running!`);
+                    });
+                    queueBlock = true;
+                } else if (args[0] === 'off') {
+                    client.channels.fetch(bot_status).then(c => {
+                        (c as Discord.TextChannel).send(`Bot in maintenance.`);
+                    });
+                    queueBlock = false;
+                } else {
+                    message.reply('Invalid syntax.');
                 }
                 message.react("👍");
                 return;
